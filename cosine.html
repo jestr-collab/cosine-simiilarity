@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cosine Similarity Demo</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    :root { 
+      --netflix-red: #e50914;
+      --bg-dark: #000000;
+      --gray-light: #b3b3b3;
+      --gray-mid: #444444;
+      --gray-dark: #222222;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+/* establishing CS style  */
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      background-color: var(--bg-dark);
+      color: #ffffff;
+    }
+
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px 16px 32px;
+    }
+
+    h1 {
+      font-size: 1.7rem;
+      margin-bottom: 4px;
+    }
+
+    p {
+      color: var(--gray-light);
+      font-size: 0.95rem;
+      line-height: 1.4;
+      margin-top: 4px;
+    }
+
+    .layout {
+      margin-top: 16px;
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .panel {
+      background: #050505;
+      border-radius: 8px;
+      border: 1px solid #171717;
+      padding: 14px;
+    }
+
+    .left-panel {
+      flex: 1 1 420px;
+      min-width: 320px;
+    }
+
+    .right-panel {
+      flex: 1 1 520px;
+      min-width: 360px;
+    }
+
+    h2 {
+      font-size: 1.1rem;
+      margin: 0 0 6px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+      font-size: 0.9rem;
+    }
+
+    th,
+    td {
+      border: 1px solid #333333;
+      padding: 6px 8px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #101010;
+      font-weight: 600;
+    }
+
+    tr:nth-child(even) td {
+      background-color: #080808;
+    }
+
+    .btn {
+      display: inline-block;
+      margin-top: 10px;
+      padding: 8px 18px;
+      border-radius: 999px;
+      border: none;
+      background-color: var(--netflix-red);
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: transform 0.1s ease, box-shadow 0.1s ease,
+        background-color 0.1s ease;
+    }
+
+    .btn:hover {
+      background-color: #f6121d;
+      box-shadow: 0 0 8px rgba(229, 9, 20, 0.7);
+      transform: translateY(-1px);
+    }
+
+    .btn:active {
+      transform: translateY(0);
+      box-shadow: none;
+    }
+
+    .note {
+      font-size: 0.8rem;
+      color: var(--gray-light);
+      margin-top: 4px;
+    }
+
+    #chart {
+      background: #050505;
+      border-radius: 8px;
+      border: 1px solid #181818;
+      padding: 6px;
+      margin-bottom: 10px;
+    }
+
+    #similarity-panel h3 {
+      margin: 0 0 4px;
+      font-size: 1rem;
+    }
+
+    #similarity-panel {
+      font-size: 0.9rem;
+    }
+
+    .sim-row {
+      margin-top: 6px;
+    }
+
+    .highlight {
+      color: var(--netflix-red);
+      font-weight: 600;
+    }
+
+    .legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+      font-size: 0.8rem;
+      color: var(--gray-light);
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .legend-swatch {
+      width: 14px;
+      height: 4px;
+      border-radius: 999px;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Cosine similarity for movie tastes</h1>
+    <p>
+      
+    </p>
+
+    <div class="layout">
+      <!--  ratings + -->
+      <div class="panel left-panel">
+        <h2>User Input Data</h2>
+        <p style="margin-bottom:6px;">
+          A subset of Users and their respective movie, genre, and rating. 
+        </p>
+        <div id="ratings-table-container"></div>
+        <button id="calculate-btn" class="btn">Calculate &amp; Visualize</button>
+        <div class="note">
+        Cosine Similarity
+To understand “how similar” two users are, recommender systems record users as a vector of movies, rating, and genre on a multidimensional graph. If two users vectors are close in distance, this is because they share similar values of features such as genre and rating. This is measured by the cosine between two user’s vectors, hence the name cosine similarity. Netflix is now prompted to recommend a user a set of movies possessed by the closest user with smallest cosine value. 
+
+        </div>
+      </div>
+
+      <!--chart + similarity panel -->
+      <div class="panel right-panel">
+        <h2>Cosine similarity visualization</h2>
+        <div id="chart"></div>
+        <div id="similarity-panel">
+          <h3>Similarity summary</h3>
+          <p class="note">
+            After you click <strong>Calculate</strong>, this will show cosine similarity
+            for all three user pairs and highlight the most similar pair.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    
+    //  Dataset implementation
+    
+    const rawData = [
+      {
+        userId: 1,
+        userName: "User 1",
+        movie: "Monty Python's Life of Brian (1979)",
+        genre: "Comedy",
+        rating: 5,
+      },
+      {
+        userId: 1,
+        userName: "User 1",
+        movie: "Welcome to Woop-Woop (1997)",
+        genre: "Comedy",
+        rating: 4,
+      },
+      {
+        userId: 1,
+        userName: "User 1",
+        movie: "You've Got Mail (1998)",
+        genre: "Comedy|Romance",
+        rating: 0.5,
+      },
+      {
+        userId: 606,
+        userName: "User 606",
+        movie: "Meet Joe Black (1998)",
+        genre: "Romance",
+        rating: 4,
+      },
+      {
+        userId: 606,
+        userName: "User 606",
+        movie: "Autumn Tale, An (Conte d'automne) (1998)",
+        genre: "Romance",
+        rating: 4,
+      },
+      {
+        userId: 606,
+        userName: "User 606",
+        movie: "Liar Liar (1997)",
+        genre: "Comedy",
+        rating: 2.5,
+      },
+      {
+        userId: 474,
+        userName: "User 474",
+        movie: "Against All Odds (1984)",
+        genre: "Romance",
+        rating: 2,
+      },
+      {
+        userId: 474,
+        userName: "User 474",
+        movie: "Palm Beach Story, The (1942)",
+        genre: "Comedy",
+        rating: 4.5,
+      },
+      {
+        userId: 474,
+        userName: "User 474",
+        movie: "Ferris Bueller's Day Off (1986)",
+        genre: "Comedy",
+        rating: 4,
+      },
+    ];
+
+    const userLabel = (id) => {
+      const name = {
+        1: "User 1",
+        606: "User 606",
+        474: "User 474",
+      }[id];
+      return name || `User ${id}`;
+    };
+
+    
+    //  Rating table
+    
+    function renderRatingsTable() {
+      const container = d3.select("#ratings-table-container");
+      container.html("");
+
+      const table = container.append("table");
+      const thead = table.append("thead");
+      const tbody = table.append("tbody");
+
+      thead
+        .append("tr")
+        .selectAll("th")
+        .data(["userId", "movie", "genre", "rating"])
+        .enter()
+        .append("th")
+        .text((d) => d);
+
+      const rows = tbody.selectAll("tr").data(rawData).enter().append("tr");
+
+      rows
+        .append("td")
+        .text((d) => d.userId)
+        .style("color", (d) => {
+          if (d.userId === 1) return "#ff4d57";
+          if (d.userId === 474) return "#ff4d57";
+          return "#ffffff";
+        });
+
+      rows.append("td").text((d) => d.movie);
+      rows.append("td").text((d) => d.genre);
+      rows.append("td").text((d) => d.rating);
+    }
+
+ 
+    //  computing the genre score 
+   
+    function computeUserGenreScores(data) {
+      const users = {};
+
+      data.forEach((row) => {
+        if (!users[row.userId]) {
+          users[row.userId] = {
+            userId: row.userId,
+            userName: userLabel(row.userId),
+            comedy: 0,
+            romance: 0,
+          };
+        }
+
+        const genres = row.genre.split("|");
+        const share = 1 / genres.length;
+        const rating = row.rating;
+
+        genres.forEach((g) => {
+          const genre = g.trim().toLowerCase();
+          if (genre === "comedy") {
+            users[row.userId].comedy += rating * share;
+          } else if (genre === "romance") {
+            users[row.userId].romance += rating * share;
+          }
+        });
+      });
+
+      return Object.values(users);
+    }
+
+    
+    //  doing cosine similarity
+    
+    function cosineSim(a, b) {
+      const dot = a.comedy * b.comedy + a.romance * b.romance;
+      const magA = Math.hypot(a.comedy, a.romance);
+      const magB = Math.hypot(b.comedy, b.romance);
+      if (magA === 0 || magB === 0) return 0;
+      return dot / (magA * magB);
+    }
+
+    function computeSimilarities(userScores) {
+      const sims = [];
+      for (let i = 0; i < userScores.length; i++) {
+        for (let j = i + 1; j < userScores.length; j++) {
+          const u1 = userScores[i];
+          const u2 = userScores[j];
+          const cos = cosineSim(u1, u2);
+          const angle =  
+            (Math.acos(Math.min(1, Math.max(-1, cos))) * 180) / Math.PI;
+          sims.push({
+            id: `${u1.userName} vs ${u2.userName}`,
+            a: u1,
+            b: u2,
+            cos,
+            angle,
+          });
+        }
+      }
+      return sims;
+    }
+
+    // 
+    // draw vector for  users
+    
+    function drawVectors(userScores, sims) {
+      const chartWidth = 520;
+      const chartHeight = 420;
+      const margin = { top: 20, right: 20, bottom: 40, left: 50 };
+      const width = chartWidth - margin.left - margin.right;
+      const height = chartHeight - margin.top - margin.bottom;
+
+      const chart = d3.select("#chart");
+      chart.html("");
+
+      const svg = chart
+        .append("svg")
+        .attr("width", chartWidth)
+        .attr("height", chartHeight);
+
+      const g = svg
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+      const maxVal =
+        d3.max(userScores, (d) => Math.max(d.comedy, d.romance)) || 1;
+      const paddingFactor = 1.1;
+//map scores to x axis 
+      const x = d3
+        .scaleLinear()
+        .domain([0, maxVal * paddingFactor])
+        .range([0, width]);
+//map scores to y 
+      const y = d3
+        .scaleLinear()
+        .domain([0, maxVal * paddingFactor])
+        .range([height, 0]);
+//render 
+      const xAxis = d3.axisBottom(x).ticks(5);
+      const yAxis = d3.axisLeft(y).ticks(5);
+
+      g.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(xAxis)
+        .call((axis) =>
+          axis
+            .selectAll("text")
+            .style("fill", "#ffffff")
+            .style("font-size", "0.8rem")
+        )
+        .call((axis) =>
+          axis
+            .selectAll("line, path")
+            .style("stroke", "#555555")
+            .style("stroke-width", 1)
+        );
+
+      g.append("g")
+        .call(yAxis)
+        .call((axis) =>
+          axis
+            .selectAll("text")
+            .style("fill", "#ffffff")
+            .style("font-size", "0.8rem")
+        )
+        .call((axis) =>
+          axis
+            .selectAll("line, path")
+            .style("stroke", "#555555")
+            .style("stroke-width", 1)
+        );
+//x ands y axis section
+      g.append("text")
+        .attr("x", width / 2)
+        .attr("y", height + 30)
+        .attr("text-anchor", "middle")
+        .attr("fill", "#ffffff")
+        .style("font-size", "0.85rem")
+        .text("Comedy preference");
+
+      g.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -height / 2)
+        .attr("y", -35)
+        .attr("text-anchor", "middle")
+        .attr("fill", "#ffffff")
+        .style("font-size", "0.85rem")
+        .text("Romance preference");
+///starting point will be 0,0
+      const originX = x(0);
+      const originY = y(0);
+//targeting user with best cosine
+      const bestPair = sims.reduce((best, cur) =>
+        cur.cos > best.cos ? cur : best
+      );
+
+      const isInBestPair = (user) =>
+        user.userId === bestPair.a.userId || user.userId === bestPair.b.userId;
+
+      const lineGroup = g.append("g");
+//drawing out each user 
+      lineGroup
+        .selectAll("line.user-vector")
+        .data(userScores)
+        .enter()
+        .append("line")
+        .attr("class", "user-vector")
+        .attr("x1", originX)
+        .attr("y1", originY)
+        .attr("x2", (d) => x(d.comedy))
+        .attr("y2", (d) => y(d.romance))
+        .attr("stroke", (d) => (isInBestPair(d) ? "#e50914" : "#666666"))
+        .attr("stroke-width", (d) => (isInBestPair(d) ? 3 : 1.6));
+///circle at end
+      lineGroup
+        .selectAll("circle.endpoint")
+        .data(userScores)
+        .enter()
+        .append("circle")
+        .attr("class", "endpoint")
+        .attr("cx", (d) => x(d.comedy))
+        .attr("cy", (d) => y(d.romance))
+        .attr("r", 4)
+        .attr("fill", (d) => (isInBestPair(d) ? "#e50914" : "#bbbbbb"));
+//labeling for each 
+      lineGroup
+        .selectAll("text.user-label")
+        .data(userScores)
+        .enter()
+        .append("text")
+        .attr("class", "user-label")
+        .attr("x", (d) => x(d.comedy) + 6)
+        .attr("y", (d) => y(d.romance) - 6)
+        .attr("fill", "#ffffff")
+        .style("font-size", "0.8rem")
+        .text((d) => d.userName);
+///compute angle for each
+      const angleA = Math.atan2(bestPair.a.romance, bestPair.a.comedy);
+      const angleB = Math.atan2(bestPair.b.romance, bestPair.b.comedy);
+      const startAngle = Math.min(angleA, angleB);
+      const endAngle = Math.max(angleA, angleB);
+
+      const arcRadius = Math.min(width, height) * 0.25;
+//red angle of cosines
+      const arc = d3
+        .arc()
+        .innerRadius(arcRadius - 8)
+        .outerRadius(arcRadius)
+        .startAngle(startAngle)
+        .endAngle(endAngle);
+//drawing arc
+      g.append("path")
+        .attr("d", arc())
+        .attr("transform", `translate(${originX},${originY})`)
+        .attr("fill", "rgba(229, 9, 20, 0.35)")
+        .attr("stroke", "#e50914")
+        .attr("stroke-width", 1.5);
+//location of arc 
+      const midAngle = (startAngle + endAngle) / 2;
+      const labelRadius = arcRadius + 18;
+      const labelX = originX + labelRadius * Math.cos(midAngle);
+      const labelY = originY - labelRadius * Math.sin(midAngle);
+//angle needs label
+      g.append("text")
+        .attr("x", labelX)
+        .attr("y", labelY)
+        .attr("text-anchor", "middle")
+        .attr("fill", "#ffffff")
+        .style("font-size", "0.8rem")
+        .text(`${bestPair.angle.toFixed(1)}°`);
+//legend
+      const legend = d3
+        .select("#chart")
+        .append("div")
+        .attr("class", "legend");
+
+      const legendData = [
+        { label: "Most similar users", color: "#e50914" },
+        { label: "Other user", color: "#666666" },
+      ];
+
+      const items = legend
+        .selectAll(".legend-item")
+        .data(legendData)
+        .enter()
+        .append("div")
+        .attr("class", "legend-item");
+
+      items
+        .append("div")
+        .attr("class", "legend-swatch")
+        .style("background-color", (d) => d.color);
+
+      items.append("span").text((d) => d.label);
+    }
+
+   //results build out 
+    function renderSimilarityPanel(sims) {
+      const panel = d3.select("#similarity-panel");
+      panel.html("");
+      panel.append("h3").text("Similarity summary");
+
+      const bestPair = sims.reduce((best, cur) =>
+        cur.cos > best.cos ? cur : best
+      );
+///most similar pair
+      panel
+        .append("p")
+        .attr("class", "sim-row")
+        .html(
+          `<span class="highlight">Most similar pair:</span> ${bestPair.a.userName} &amp; ${bestPair.b.userName}<br/>
+           Cosine similarity: <strong>${bestPair.cos.toFixed(
+             3
+           )}</strong> &nbsp; (angle ≈ ${bestPair.angle.toFixed(1)}°)`
+        );
+
+      panel.append("p").attr("class", "sim-row").text("All pairs:");
+
+      sims.forEach((s) => {
+        panel
+          .append("p")
+          .attr("class", "sim-row")
+          .html(
+            `${s.id}: cos = <strong>${s.cos.toFixed(
+              3
+            )}</strong>, angle ≈ ${s.angle.toFixed(1)}°`
+          );
+      });
+
+      panel
+        .append("p")
+        .attr("class", "note")
+        .html(
+          `Smaller angle → higher cosine → more similar taste.
+           Netflix will act on users with high cosine similarity to receive similar movie recommendations.`
+        );
+    }
+
+
+    function handleCalculate() {
+      const scores = computeUserGenreScores(rawData);
+      const sims = computeSimilarities(scores);
+      drawVectors(scores, sims);
+      renderSimilarityPanel(sims);
+    }
+
+    renderRatingsTable();
+    document
+      .getElementById("calculate-btn")
+      .addEventListener("click", handleCalculate);
+  </script>
+</body>
+</html>
